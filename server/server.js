@@ -15,30 +15,37 @@ import Message from "./models/Message.js";
 import User from "./models/User.js";
 import auth from "./middleware/auth.js";
 
-/* ---------------------------- APP SETUP ---------------------------- */
+/* ========================= APP SETUP ========================= */
 const app = express();
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+  })
+);
+
 app.use(express.json());
 
-/* ---------------------------- STATIC UPLOADS ---------------------------- */
+/* ========================= STATIC UPLOADS ========================= */
 app.use("/uploads", express.static(path.resolve("uploads")));
 
-/* ---------------------------- MONGO ---------------------------- */
+/* ========================= MONGO ========================= */
 mongoose
   .connect("mongodb://127.0.0.1:27017/chatapp")
   .then(() => console.log("✅ MongoDB Connected"))
-  .catch((err) => console.log("❌ Mongo Error:", err));
+  .catch((err) => console.error("❌ Mongo Error:", err));
 
-/* ---------------------------- ROUTES ---------------------------- */
+/* ========================= ROUTES ========================= */
 app.use("/auth", authRoutes);
 app.use("/group", auth, groupRoutes);
 app.use("/messages", auth, messageRoutes);
 app.use("/user", auth, userRoutes);
 
-/* ---------------------------- SOCKET ---------------------------- */
-const server = createServer(app);
+/* ========================= SERVER + SOCKET ========================= */
+const httpServer = createServer(app);
 
-const io = new Server(server, {
+const io = new Server(httpServer, {
   cors: {
     origin: "http://localhost:3000",
     credentials: true,
@@ -47,27 +54,63 @@ const io = new Server(server, {
 
 app.set("io", io);
 
-/* ---------------------------- HELPERS ---------------------------- */
-const onlineUsers = new Map();
+/* ========================= HELPERS ========================= */
+const onlineUsers = new Map(); // userId -> socketId
 const makeRoom = (a, b) => [a, b].sort().join("_");
 
-/* ---------------------------- SOCKET LOGIC ---------------------------- */
+/* ========================= SOCKET LOGIC ========================= */
 io.on("connection", (socket) => {
   console.log("⚡ Socket connected:", socket.id);
 
+  /* ---------- USER ONLINE ---------- */
   socket.on("user-online", (userId) => {
+    if (!userId) return;
+
     onlineUsers.set(userId, socket.id);
     io.emit("online-users", Array.from(onlineUsers.keys()));
   });
+  // 🔥 TYPING INDICATOR
+  socket.on("typing", ({ room, userName }) => {
+    socket.to(room).emit("typing", { userName });
+  });
 
+  socket.on("stop-typing", ({ room }) => {
+    socket.to(room).emit("stop-typing");
+  });
+  // ================== LAST SEEN ==================
+  socket.on("disconnect", async () => {
+    for (let [uid, sid] of onlineUsers.entries()) {
+      if (sid === socket.id) {
+        onlineUsers.delete(uid);
+
+        // 🔥 SAVE LAST SEEN
+        await User.findByIdAndUpdate(uid, {
+          lastSeen: new Date(),
+        });
+      }
+    }
+
+    io.emit("online-users", Array.from(onlineUsers.keys()));
+  });
+
+  /* ---------- JOIN ROOM ---------- */
   socket.on("joinRoom", (room) => {
-    if (!socket.rooms.has(room)) socket.join(room);
+    if (!room) return;
+    socket.join(room);
   });
 
+  /* ---------- LEAVE ROOM ---------- */
   socket.on("leaveRoom", (room) => {
-    if (socket.rooms.has(room)) socket.leave(room);
+    if (!room) return;
+    socket.leave(room);
   });
 
+  /* =========================================================
+     SEND MESSAGE
+     ✔ Sent
+     ✔✔ Delivered (socket)
+     ✔✔ Seen (via mark-read route)
+  ========================================================= */
   socket.on("sendMessage", async (data) => {
     try {
       const {
@@ -79,8 +122,11 @@ io.on("connection", (socket) => {
         toUserId,
       } = data;
 
-      const sender = await User.findById(senderId);
+      if (!senderId || !message) return;
 
+      const sender = await User.findById(senderId).lean();
+
+      /* ================= PRIVATE CHAT ================= */
       if (isPrivate) {
         const privateRoom = makeRoom(senderId, toUserId);
 
@@ -92,13 +138,31 @@ io.on("connection", (socket) => {
           senderPhoto: sender?.photo || "",
           toUserId,
           message,
+          deliveredTo: [],      // 🔥 delivered users
+          readBy: [senderId],   // 🔥 sender already read
           timestamp: Date.now(),
         });
 
+        // 🔥 SEND MESSAGE
         io.to(privateRoom).emit("receiveMessage", saved);
+
+        // 🔥 MARK DELIVERED (receiver socket exists)
+        if (onlineUsers.has(toUserId)) {
+          await Message.updateOne(
+            { _id: saved._id },
+            { $addToSet: { deliveredTo: toUserId } }
+          );
+
+          io.emit("message-delivered", {
+            messageId: saved._id,
+            deliveredTo: toUserId,
+          });
+        }
+
         return;
       }
 
+      /* ================= GROUP CHAT ================= */
       const saved = await Message.create({
         groupId,
         isPrivate: false,
@@ -106,25 +170,38 @@ io.on("connection", (socket) => {
         senderName,
         senderPhoto: sender?.photo || "",
         message,
+        deliveredTo: [],      // 🔥 delivered users
+        readBy: [senderId],   // 🔥 sender already read
         timestamp: Date.now(),
       });
 
       io.to(groupId).emit("receiveMessage", saved);
+
+      // 🔥 GROUP DELIVERED (simplified)
+      io.emit("message-delivered", {
+        messageId: saved._id,
+        deliveredTo: "GROUP",
+      });
     } catch (err) {
-      console.error("sendMessage error:", err);
+      console.error("❌ sendMessage error:", err);
     }
   });
 
+  /* ---------- DISCONNECT ---------- */
   socket.on("disconnect", () => {
-    for (let [uid, sid] of onlineUsers.entries()) {
-      if (sid === socket.id) onlineUsers.delete(uid);
+    for (const [uid, sid] of onlineUsers.entries()) {
+      if (sid === socket.id) {
+        onlineUsers.delete(uid);
+        break;
+      }
     }
     io.emit("online-users", Array.from(onlineUsers.keys()));
   });
 });
 
-/* ---------------------------- START ---------------------------- */
+/* ========================= START SERVER ========================= */
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, "0.0.0.0", () => {
+
+httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);
 });

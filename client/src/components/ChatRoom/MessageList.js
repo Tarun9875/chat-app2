@@ -1,5 +1,3 @@
-// client/src/components/ChatRoom/MessageList.js
-
 import DateSeparator from "./DateSeparator";
 import MessageBubble from "./MessageBubble";
 import { styles } from "./styles";
@@ -12,6 +10,8 @@ export default function MessageList({
   menuOpenId,
   setMenuOpenId,
   onDelete,
+  onCopy,          // ✅ FIX
+  onAvatarClick,   // ✅ FIX
   bottomRef,
   formatDate,
 }) {
@@ -27,7 +27,7 @@ export default function MessageList({
             new Date(m.timestamp).toDateString();
 
         return (
-          <div key={i}>
+          <div key={m._id}> {/* ✅ FIX */}
             {showDate && (
               <DateSeparator text={formatDate(m.timestamp)} />
             )}
@@ -40,6 +40,8 @@ export default function MessageList({
               menuOpenId={menuOpenId}
               setMenuOpenId={setMenuOpenId}
               onDelete={onDelete}
+              onCopy={onCopy}              // ✅ FIX
+              onAvatarClick={onAvatarClick} // ✅ FIX
             />
           </div>
         );

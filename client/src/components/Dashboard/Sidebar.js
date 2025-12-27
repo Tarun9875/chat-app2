@@ -66,19 +66,25 @@ export default function Sidebar({
     loadGroups();
     loadUsers();
 
-    socket.on("groups-updated", () => loadGroups());
+    socket.on("groups-updated", loadGroups);
+
+    // 🔥 NEW — refresh unread counts when message arrives
+    socket.on("receiveMessage", () => {
+      loadGroups();
+      loadUsers();
+    });
 
     socket.on("online-users", (list) => {
       setOnlineUsers(list || []);
     });
 
-    // FIXED ERROR: correct syntax use optional chaining
     if (user?._id) {
       socket.emit("user-online", user._id);
     }
 
     return () => {
-      socket.off("groups-updated");
+      socket.off("groups-updated", loadGroups);
+      socket.off("receiveMessage"); // 🔥 NEW cleanup
       socket.off("online-users");
     };
 
@@ -89,7 +95,6 @@ export default function Sidebar({
   const userGroups = groups.filter((g) =>
     (g.members || []).some((m) => {
       if (!m) return false;
-      // support both string IDs and objects
       if (typeof m === "string") return m === user?._id;
       if (typeof m === "object") return m._id === user?._id;
       return false;
@@ -108,6 +113,7 @@ export default function Sidebar({
           users={users}
           onlineUsers={onlineUsers}
           openChat={openChat}
+          currentUserId={user?._id} // 🔥 IMPORTANT
         />
       </div>
 

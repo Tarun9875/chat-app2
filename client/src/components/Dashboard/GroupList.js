@@ -1,4 +1,3 @@
-// client/src/components/Dashboard/GroupList.js
 import { styles } from "./styles";
 import { getImageUrl } from "../../utils/getImageUrl";
 
@@ -22,36 +21,39 @@ export default function GroupList({ groups = [], openChat }) {
               
               {/* GROUP AVATAR */}
               <div style={{ position: "relative" }}>
-                {g.avatar ? (
-                  <img
-                    src={avatarUrl}
-                    alt={g.name}
+                <img
+                  src={avatarUrl}
+                  alt={g.name}
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: "50%",
+                    objectFit: "cover",
+                    border: "2px solid #2A3942",
+                  }}
+                />
+
+                {/* 🔥 UNREAD BADGE */}
+                {g.unreadCount > 0 && (
+                  <span
                     style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: "50%",
-                      objectFit: "cover",
-                      border: "2px solid #2A3942",
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: "50%",
-                      background: "#2A3942",
-                      color: "#E9EDEF",
+                      position: "absolute",
+                      top: -4,
+                      right: -4,
+                      minWidth: 18,
+                      height: 18,
+                      background: "#25D366",
+                      color: "#111",
+                      fontSize: 11,
+                      fontWeight: "bold",
+                      borderRadius: 9,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontWeight: "bold",
-                      fontSize: 16,
-                      border: "2px solid #2A3942",
                     }}
                   >
-                    {g.name?.[0]?.toUpperCase()}
-                  </div>
+                    {g.unreadCount}
+                  </span>
                 )}
               </div>
 
@@ -61,7 +63,7 @@ export default function GroupList({ groups = [], openChat }) {
                   {g.name}
                 </div>
                 <div style={{ color: "#8696A0", fontSize: 12 }}>
-                  {(g.members?.length || 1)} members
+                  {g.members?.length || 1} members
                 </div>
               </div>
             </div>

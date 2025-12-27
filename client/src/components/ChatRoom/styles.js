@@ -29,7 +29,7 @@ export const styles = {
     padding: "15px",
   },
 
-  
+
   dateSeparator: {
     alignSelf: "center",
     background: "#111B21",   // WhatsApp dark pill
@@ -143,5 +143,19 @@ export const styles = {
     border: "none",
     fontWeight: "bold",
     cursor: "pointer",
+  },
+
+  metaRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 6,
+    marginTop: 4,
+  },
+
+  tick: {
+    fontSize: 12,
+    fontWeight: "bold",
+    userSelect: "none",
   },
 };

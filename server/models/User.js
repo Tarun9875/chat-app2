@@ -28,12 +28,15 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
-
+    //
     // WhatsApp-like status text
     status: {
       type: String,
       default: "Hey there! I am using Chat Web",
     },
+    //last seen timestamp
+   lastSeen: { type: Date, default: null },
+
   },
   {
     timestamps: true,

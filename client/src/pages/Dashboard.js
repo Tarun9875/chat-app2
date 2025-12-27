@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import API from "../api";
+import socket from "../socket"; // 🔥 NEW
 
 import ChatRoom from "./ChatRoom";
 import TopBar from "../components/Dashboard/TopBar";
@@ -30,6 +31,9 @@ export default function Dashboard({ onLogout }) {
     setUser(stored);
     loadGroups();
     loadUsers(stored._id);
+
+    // 🔥 NEW — notify socket user online
+    socket.emit("user-online", stored._id);
   }, []);
 
   /* ---------------- LOAD GROUPS ---------------- */
@@ -52,12 +56,31 @@ export default function Dashboard({ onLogout }) {
     }
   };
 
+  /* ---------------- REALTIME UNREAD REFRESH ---------------- */
+  useEffect(() => {
+    if (!user?._id) return;
+
+    // 🔥 NEW — refresh sidebar when message arrives
+    const refreshUnread = () => {
+      loadGroups();
+      loadUsers(user._id);
+    };
+
+    socket.on("receiveMessage", refreshUnread);
+    socket.on("groups-updated", refreshUnread);
+
+    return () => {
+      socket.off("receiveMessage", refreshUnread);
+      socket.off("groups-updated", refreshUnread);
+    };
+  }, [user?._id]);
+
   /* ---------------- OPEN CHAT ---------------- */
   const openChat = (id, name, isPrivate, userObj = null) => {
     setActiveChatId(id);
     setActiveChatName(name);
     setActiveIsPrivate(isPrivate);
-    setActiveUser(userObj); // ✅ private user avatar & name
+    setActiveUser(userObj);
   };
 
   /* ---------------- SAVE PROFILE ---------------- */
@@ -84,6 +107,7 @@ export default function Dashboard({ onLogout }) {
     }
   };
 
+  /* ---------------- RENDER ---------------- */
   return (
     <div style={styles.page}>
       {/* TOP BAR */}
@@ -92,10 +116,9 @@ export default function Dashboard({ onLogout }) {
           user={user}
           name={user.name}
           onLogout={onLogout}
-          onCreateGroup={createGroup}   // ✅ REQUIRED
+          onCreateGroup={createGroup}
           onOpenProfile={() => setProfileOpen(true)}
         />
-
       )}
 
       <div style={styles.main}>

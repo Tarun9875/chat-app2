@@ -69,9 +69,9 @@ export default function ChatRoom({
   }, []);
 
   /* ======================================================
-     LOAD GROUP INFO
+     LOAD GROUP INFO (FIXED)
   ===================================================== */
-  const loadGroupInfo = async () => {
+  const loadGroupInfo = useCallback(async () => {
     if (isPrivate || !groupId) return;
     try {
       const res = await API.get(`/group/${groupId}`);
@@ -79,14 +79,45 @@ export default function ChatRoom({
     } catch (err) {
       console.error("Group info error:", err);
     }
-  };
+  }, [groupId, isPrivate]);
 
   useEffect(() => {
     loadGroupInfo();
-  }, [groupId, isPrivate]);
+  }, [loadGroupInfo]);
 
   /* ======================================================
-     JOIN ROOM (NO LOOP)
+     MARK AS READ (FIXED)
+  ===================================================== */
+  const markAsRead = useCallback(async () => {
+  if (!user?._id || !groupId) return;
+
+  try {
+    if (isPrivate) {
+      const room = [user._id, groupId].sort().join("_");
+      await API.post("/messages/mark-read", { privateRoom: room });
+    } else {
+      await API.post("/messages/mark-read", { groupId });
+    }
+
+    // 🔥 IMPORTANT — update UI readBy
+    setChat((prev) =>
+      prev.map((m) =>
+        m.senderId === user._id
+          ? m
+          : {
+              ...m,
+              readBy: Array.from(new Set([...(m.readBy || []), user._id])),
+            }
+      )
+    );
+  } catch (err) {
+    console.error("mark read error:", err);
+  }
+}, [groupId, isPrivate, user?._id]);
+
+
+  /* ======================================================
+     JOIN ROOM + LOAD HISTORY
   ===================================================== */
   useEffect(() => {
     if (!user || !groupId) return;
@@ -112,16 +143,17 @@ export default function ChatRoom({
 
         const res = await API.get(url);
         setChat(res.data || []);
+        markAsRead();
       } catch (err) {
         console.error("Message load error:", err);
       }
     };
 
     loadHistory();
-  }, [groupId, isPrivate, user?._id]);
+  }, [groupId, isPrivate, user?._id, markAsRead]);
 
   /* ======================================================
-     SOCKET LISTENER
+     SOCKET LISTENER (FIXED)
   ===================================================== */
   useEffect(() => {
     const onReceive = (msg) => {
@@ -131,12 +163,45 @@ export default function ChatRoom({
 
       if (msgRoom === currentRoomRef.current) {
         setChat((prev) => [...prev, msg]);
+        markAsRead();
       }
     };
 
     socket.on("receiveMessage", onReceive);
     return () => socket.off("receiveMessage", onReceive);
-  }, []);
+  }, [markAsRead]);
+  
+  /* ======================================================
+     🔥 NEW — AUTO REFRESH ✔✔ WHEN OTHER USER SEES MESSAGE
+  ===================================================== */
+  useEffect(() => {
+    const onSeen = ({ groupId, privateRoom, seenBy }) => {
+      const activeRoom = currentRoomRef.current;
+
+      const sameRoom = isPrivate
+        ? privateRoom === activeRoom
+        : groupId === activeRoom;
+
+      if (!sameRoom) return;
+
+      // 🔥 update sender messages → show ✔✔ instantly
+      setChat((prev) =>
+        prev.map((m) =>
+          m.senderId === user._id
+            ? {
+                ...m,
+                readBy: Array.from(
+                  new Set([...(m.readBy || []), seenBy])
+                ),
+              }
+            : m
+        )
+      );
+    };
+
+    socket.on("messages-seen", onSeen);
+    return () => socket.off("messages-seen", onSeen);
+  }, [isPrivate, user?._id]);
 
   /* ======================================================
      AUTO SCROLL
@@ -202,7 +267,7 @@ export default function ChatRoom({
   };
 
   /* ======================================================
-     ADMIN / MEMBER ACTIONS (🔥 FIX)
+     ADMIN / MEMBER ACTIONS
   ===================================================== */
   const promoteAdmin = async (member) => {
     try {
@@ -210,7 +275,7 @@ export default function ChatRoom({
         memberId: member._id,
       });
       loadGroupInfo();
-    } catch (err) {
+    } catch {
       alert("Only owner can promote admin");
     }
   };
@@ -221,7 +286,7 @@ export default function ChatRoom({
         memberId: member._id,
       });
       loadGroupInfo();
-    } catch (err) {
+    } catch {
       alert("Only owner can dismiss admin");
     }
   };
@@ -232,7 +297,7 @@ export default function ChatRoom({
         memberId: member._id,
       });
       loadGroupInfo();
-    } catch (err) {
+    } catch {
       alert("Permission denied");
     }
   };

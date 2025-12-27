@@ -62,6 +62,38 @@ router.delete("/:id", async (req, res) => {
     res.status(500).send("Server error");
   }
 });
+//------------------------------  
+//mark message as read
+// ------------------------------
+// MARK AS READ
+router.post("/mark-read", async (req, res) => {
+  try {
+    const { groupId, privateRoom } = req.body;
+    const userId = req.user._id.toString();
+
+    const filter = groupId
+      ? { groupId, readBy: { $ne: userId } }
+      : { privateRoom, readBy: { $ne: userId } };
+
+    await Message.updateMany(
+      filter,
+      { $addToSet: { readBy: userId } }
+    );
+
+    // 🔥 AUTO REFRESH EVENT
+    req.app.get("io").emit("messages-seen", {
+      groupId,
+      privateRoom,
+      seenBy: userId,
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("mark-read error:", err);
+    res.status(500).json({ message: "Failed to mark read" });
+  }
+});
+
 
 
 export default router;
