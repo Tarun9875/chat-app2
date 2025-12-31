@@ -4,29 +4,9 @@ import Message from "../models/Message.js";
 
 const router = express.Router();
 
-
-// ------------------------------
-// Get Group Chat History
-// ------------------------------
-router.get("/:groupId", async (req, res) => {
-  try {
-    const messages = await Message.find({
-      groupId: req.params.groupId,
-      isPrivate: false
-    }).sort({ timestamp: 1 });
-
-    res.json(messages);
-  } catch (err) {
-    console.error("Group history error:", err);
-    res.status(500).send("Server error");
-  }
-});
-
-
-// ------------------------------
-// Get Private Chat History
-// /messages/private/:currentUserId/:otherUserId
-// ------------------------------
+/* ==============================
+   PRIVATE CHAT HISTORY
+================================ */
 router.get("/private/:currentUserId/:otherUserId", async (req, res) => {
   try {
     const { currentUserId, otherUserId } = req.params;
@@ -34,7 +14,7 @@ router.get("/private/:currentUserId/:otherUserId", async (req, res) => {
 
     const messages = await Message.find({
       privateRoom: room,
-      isPrivate: true
+      isPrivate: true,
     }).sort({ timestamp: 1 });
 
     res.json(messages);
@@ -44,46 +24,81 @@ router.get("/private/:currentUserId/:otherUserId", async (req, res) => {
   }
 });
 
+/* ==============================
+   GROUP CHAT HISTORY
+================================ */
+router.get("/:groupId", async (req, res) => {
+  try {
+    const messages = await Message.find({
+      groupId: req.params.groupId,
+      isPrivate: false,
+    }).sort({ timestamp: 1 });
 
-// ------------------------------
-// DELETE Message
-// ------------------------------
+    res.json(messages);
+  } catch (err) {
+    console.error("Group history error:", err);
+    res.status(500).send("Server error");
+  }
+});
+
+/* ==============================
+   DELETE MESSAGE
+================================ */
 router.delete("/:id", async (req, res) => {
   try {
     const msg = await Message.findById(req.params.id);
-
     if (!msg) return res.status(404).send("Message not found");
 
     await msg.deleteOne();
-
     res.send("Message deleted");
   } catch (err) {
     console.error("Delete error:", err);
     res.status(500).send("Server error");
   }
 });
-//------------------------------  
-//mark message as read
-// ------------------------------
-// MARK AS READ
+/* ==============================
+   MARK AS READ (✅ FINAL, SAFE)
+================================ */
 router.post("/mark-read", async (req, res) => {
   try {
+    const userId = req.user?._id?.toString();
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const { groupId, privateRoom } = req.body;
-    const userId = req.user._id.toString();
 
+    if (!groupId && !privateRoom) {
+      return res.status(400).json({ message: "Invalid payload" });
+    }
+
+    // -----------------------------
+    // UPDATE DB (SOURCE OF TRUTH)
+    // -----------------------------
     const filter = groupId
-      ? { groupId, readBy: { $ne: userId } }
-      : { privateRoom, readBy: { $ne: userId } };
+      ? {
+          groupId,
+          senderId: { $ne: userId },
+          readBy: { $ne: userId },
+        }
+      : {
+          privateRoom,
+          senderId: { $ne: userId },
+          readBy: { $ne: userId },
+        };
 
-    await Message.updateMany(
-      filter,
-      { $addToSet: { readBy: userId } }
-    );
+    await Message.updateMany(filter, {
+      $addToSet: { readBy: userId },
+    });
 
-    // 🔥 AUTO REFRESH EVENT
-    req.app.get("io").emit("messages-seen", {
-      groupId,
-      privateRoom,
+    // -----------------------------
+    // SOCKET EMIT (GLOBAL SAFE)
+    // -----------------------------
+    const io = req.app.get("io");
+
+    io.emit("messages-seen", {
+      groupId: groupId || null,
+      privateRoom: privateRoom || null,
       seenBy: userId,
     });
 
@@ -93,7 +108,6 @@ router.post("/mark-read", async (req, res) => {
     res.status(500).json({ message: "Failed to mark read" });
   }
 });
-
 
 
 export default router;

@@ -1,16 +1,63 @@
 // server/routes/user.js
 import express from "express";
 import User from "../models/User.js";
+import Message from "../models/Message.js";
+import auth from "../middleware/auth.js";
 
 const router = express.Router();
 
 /* ------------------------------------------------------
-   GET ALL USERS (name, photo, status)
+   GET ALL USERS WITH:
+   - lastMessage
+   - unreadCount
 ------------------------------------------------------ */
-router.get("/all", async (req, res) => {
+router.get("/all", auth, async (req, res) => {
   try {
-    const users = await User.find({}, "name photo status").lean();
-    res.json(users);
+    const myId = req.user._id.toString();
+
+    // Get all users except me
+    const users = await User.find(
+      { _id: { $ne: myId } },
+      "name photo status"
+    ).lean();
+
+    const result = [];
+
+    for (const u of users) {
+      const room = [myId, u._id.toString()].sort().join("_");
+
+      // last message
+      const lastMessage = await Message.findOne({
+        privateRoom: room,
+      })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      // unread count
+      const unreadCount = await Message.countDocuments({
+        privateRoom: room,
+        senderId: u._id.toString(),
+        readBy: { $ne: myId },
+      });
+
+      result.push({
+        _id: u._id,
+        name: u.name,
+        photo: u.photo || "",
+        status: u.status || "",
+        lastMessage: lastMessage
+          ? {
+              text: lastMessage.deleted
+                ? "🚫 This message was deleted"
+                : lastMessage.message,
+              createdAt: lastMessage.createdAt,
+            }
+          : null,
+        unreadCount,
+      });
+    }
+
+    res.json(result);
   } catch (err) {
     console.error("user all error:", err);
     res.status(500).json({ message: "Server error" });
@@ -19,16 +66,11 @@ router.get("/all", async (req, res) => {
 
 /* ------------------------------------------------------
    UPDATE USER PROFILE
-   Requires auth → req.user is available
 ------------------------------------------------------ */
-router.put("/update/:id", async (req, res) => {
+router.put("/update/:id", auth, async (req, res) => {
   try {
     const id = req.params.id;
 
-    if (!req.user)
-      return res.status(401).json({ message: "Unauthorized" });
-
-    // User can only update their own profile
     if (req.user._id.toString() !== id)
       return res.status(403).json({ message: "Forbidden" });
 

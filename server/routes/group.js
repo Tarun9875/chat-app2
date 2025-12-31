@@ -75,35 +75,51 @@ router.post("/create", async (req, res) => {
     res.status(500).json({ message: "Failed to create group" });
   }
 });
-
 /* ======================================================
-   GET USER GROUPS (WITH LAST MESSAGE)
+   GET USER GROUPS (WITH LAST MESSAGE + UNREAD COUNT)
 ====================================================== */
 router.get("/with-last", async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user._id.toString();
 
     const groups = await Group.find({ members: userId }).lean();
 
     const result = await Promise.all(
       groups.map(async (g) => {
+        // ✅ LAST MESSAGE
         const last = await Message.findOne({
           groupId: g._id.toString(),
           isPrivate: false,
         })
-          .sort({ timestamp: -1 })
+          .sort({ createdAt: -1 }) // ✅ SAFE SORT
           .lean();
+
+        // ✅ UNREAD COUNT
+        const unreadCount = await Message.countDocuments({
+          groupId: g._id.toString(),
+          senderId: { $ne: userId },
+          readBy: { $ne: userId },
+        });
 
         return {
           ...g,
+
+          // ✅ LAST MESSAGE PREVIEW
           lastMessage: last
             ? {
-                message: last.message,
+                text: last.deleted
+                  ? "🚫 This message was deleted"
+                  : last.message,
                 senderName: last.senderName,
-                senderPhoto: last.senderPhoto,
-                timestamp: last.timestamp,
+                timestamp: last.createdAt,
               }
             : null,
+
+          // ✅ WHATSAPP STYLE BADGE
+          unreadCount,
+
+          // ✅ MUTE SUPPORT (future ready)
+          isMuted: g.mutedBy?.includes(userId) || false,
         };
       })
     );

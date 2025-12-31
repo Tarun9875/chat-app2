@@ -1,9 +1,11 @@
+// server/controllers/userController.js
 import User from "../models/User.js";
 import Message from "../models/Message.js";
+import mongoose from "mongoose";
 
 export const getAllUsers = async (req, res) => {
   try {
-    const currentUserId = req.user._id.toString();
+    const currentUserId = new mongoose.Types.ObjectId(req.user._id);
 
     const users = await User.find(
       { _id: { $ne: currentUserId } },
@@ -14,9 +16,9 @@ export const getAllUsers = async (req, res) => {
       users.map(async (u) => {
         const unreadCount = await Message.countDocuments({
           isPrivate: true,
-          senderId: u._id.toString(),
-          toUserId: currentUserId,
-          readBy: { $ne: currentUserId }, // 🔥 NOT READ
+          senderId: u._id,              // ✅ ObjectId
+          toUserId: currentUserId,      // ✅ ObjectId
+          readBy: { $ne: currentUserId }, // ✅ ObjectId
         });
 
         return {

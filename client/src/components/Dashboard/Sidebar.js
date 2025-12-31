@@ -1,4 +1,3 @@
-// client/src/components/Dashboard/Sidebar.js
 import { styles } from "./styles";
 import GroupList from "./GroupList";
 import UserList from "./UserList";
@@ -18,93 +17,89 @@ export default function Sidebar({
   const [users, setUsers] = useState(initialUsers);
   const [onlineUsers, setOnlineUsers] = useState([]);
 
-  /* ---------- PROFILE HOVER UI ---------- */
-  const profileStyle = {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "12px 14px",
-    background: hover ? "#1A2328" : "#111B21",
-    borderTop: "1px solid #2A3942",
-    cursor: "pointer",
-    transition: ".25s",
-  };
-
-  const avatarStyle = {
-    width: 40,
-    height: 40,
-    borderRadius: "50%",
-    objectFit: "cover",
-    border: "2px solid #00A884",
-    transition: ".25s",
-    transform: hover ? "scale(1.07)" : "scale(1)",
-    boxShadow: hover ? "0 0 10px #00A884" : "none",
-  };
-
-  /* ---------- LOAD GROUPS ---------- */
+  /* ================================
+     LOAD GROUPS (WITH UNREAD COUNT)
+  ================================= */
   const loadGroups = async () => {
     try {
       const res = await API.get("/group/with-last");
-      if (res?.data) setGroups(res.data);
+      if (Array.isArray(res.data)) {
+        setGroups(res.data);
+      }
     } catch (err) {
       console.error("Failed to load groups:", err);
     }
   };
 
-  /* ---------- LOAD USERS ---------- */
+  /* ================================
+     LOAD USERS (REMOVE SELF)
+  ================================= */
   const loadUsers = async () => {
     try {
       const res = await API.get("/user/all");
-      if (res?.data) setUsers(res.data);
+      if (Array.isArray(res.data)) {
+        setUsers(res.data.filter((u) => u._id !== user?._id));
+      }
     } catch (err) {
       console.error("Failed to load users:", err);
     }
   };
 
-  /* ---------- EFFECT: Fetch + Socket Events ---------- */
+  /* ================================
+     SOCKET + INITIAL LOAD
+  ================================= */
   useEffect(() => {
+    if (!user?._id) return;
+
+    // initial load
     loadGroups();
     loadUsers();
 
-    socket.on("groups-updated", loadGroups);
-
-    // 🔥 NEW — refresh unread counts when message arrives
-    socket.on("receiveMessage", () => {
+    const refreshAll = () => {
       loadGroups();
       loadUsers();
-    });
-
-    socket.on("online-users", (list) => {
-      setOnlineUsers(list || []);
-    });
-
-    if (user?._id) {
-      socket.emit("user-online", user._id);
-    }
-
-    return () => {
-      socket.off("groups-updated", loadGroups);
-      socket.off("receiveMessage"); // 🔥 NEW cleanup
-      socket.off("online-users");
     };
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    socket.on("groups-updated", loadGroups);
+    socket.on("receiveMessage", refreshAll);
+
+    // 🔥 when unread resets to 0
+    socket.on("messages-seen", () =>
+       { 
+      loadGroups();
+      loadUsers();});
+
+    socket.on("online-users", (list) => {
+      setOnlineUsers(Array.isArray(list) ? list : []);
+    });
+
+    socket.emit("user-online", user._id);
+
+   return () => {
+  socket.off("groups-updated", loadGroups);
+  socket.off("receiveMessage", refreshAll);
+  socket.off("messages-seen", refreshAll);
+  socket.off("online-users");
+
+  socket.emit("user-offline", user._id);
+};
+
   }, [user?._id]);
 
-  /* ---------- FILTER GROUPS WHERE USER IS MEMBER ---------- */
+  /* ================================
+     FILTER GROUPS WHERE USER IS MEMBER
+  ================================= */
   const userGroups = groups.filter((g) =>
-    (g.members || []).some((m) => {
-      if (!m) return false;
-      if (typeof m === "string") return m === user?._id;
-      if (typeof m === "object") return m._id === user?._id;
-      return false;
-    })
+    (g.members || []).some((m) =>
+      typeof m === "string" ? m === user?._id : m?._id === user?._id
+    )
   );
 
-  /* ---------- RENDER ---------- */
+  /* ================================
+     RENDER
+  ================================= */
   return (
     <div style={{ ...styles.sidebar, display: "flex", flexDirection: "column" }}>
-      
       {/* LIST AREA */}
       <div style={{ flex: 1, overflowY: "auto" }}>
         <GroupList groups={userGroups} openChat={openChat} />
@@ -113,13 +108,22 @@ export default function Sidebar({
           users={users}
           onlineUsers={onlineUsers}
           openChat={openChat}
-          currentUserId={user?._id} // 🔥 IMPORTANT
+          currentUserId={user?._id}
         />
       </div>
 
-      {/* PROFILE BOTTOM */}
+      {/* PROFILE FOOTER */}
       <div
-        style={profileStyle}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "12px 14px",
+          background: hover ? "#1A2328" : "#111B21",
+          borderTop: "1px solid #2A3942",
+          cursor: "pointer",
+          transition: ".25s",
+        }}
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         onClick={onOpenProfile}
@@ -129,8 +133,14 @@ export default function Sidebar({
             user?.photo ||
             "https://cdn-icons-png.flaticon.com/512/149/149071.png"
           }
-          alt=""
-          style={avatarStyle}
+          alt="avatar"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: "50%",
+            objectFit: "cover",
+            border: "2px solid #00A884",
+          }}
         />
 
         <div>
@@ -142,7 +152,6 @@ export default function Sidebar({
           </div>
         </div>
       </div>
-
     </div>
   );
 }

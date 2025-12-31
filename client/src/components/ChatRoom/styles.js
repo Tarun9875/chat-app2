@@ -158,4 +158,112 @@ export const styles = {
     fontWeight: "bold",
     userSelect: "none",
   },
+  /* ----------- INPUT BAR WRAPPER ----------- */
+  inputBarWrapper: {
+    position: "relative", // 🔥 REQUIRED
+  },
+
+  emojiBtn: {
+    background: "transparent",
+    border: "none",
+    fontSize: 22,
+    cursor: "pointer",
+    marginRight: 6,
+  },
+
+  emojiBox: {
+    position: "absolute",
+    bottom: 65,           // above input bar
+    right: 20,            // WhatsApp-style alignment
+    zIndex: 9999,
+    boxShadow: "0 4px 12px rgba(0,0,0,0.6)",
+    borderRadius: 12,
+  },
+  msgImage: {
+    maxWidth: "260px",     // WhatsApp-like width
+    maxHeight: "260px",    // prevents tall images
+    width: "auto",
+    height: "auto",
+    borderRadius: 10,
+    marginTop: 6,
+    cursor: "pointer",
+    objectFit: "cover",
+  },
+  previewBox: {
+    position: "absolute",
+    bottom: 70,
+    left: 20,
+    background: "#202C33",
+    padding: 6,
+    borderRadius: 8,
+    zIndex: 9999,
+    maxWidth: 200,
+  },
+
+  previewImg: {
+    maxWidth: "180px",
+    maxHeight: "180px",
+    borderRadius: 6,
+    objectFit: "cover",
+    display: "block",
+  },
+  inputBarWrapper: {
+    position: "relative",
+  },
+  /* ===============================
+     WHATSAPP ATTACHMENT MENU
+  =============================== */
+  attachMenu: {
+    background: "#202C33",
+    borderRadius: 12,
+    padding: "6px 0",
+    width: 240,
+  },
+
+  attachRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    padding: "10px 16px",
+    color: "#E9EDEF",
+    cursor: "pointer",
+    fontSize: 14,
+  },
+
+  attachRowIcon: {
+    color: "#8696A0",
+  },
+
+  // hover effect
+  attachRowHover: {
+    background: "#2A3942",
+  },
+
+  emojiPicker: {
+    position: "absolute",
+    bottom: 70,
+    left: 10,
+    zIndex: 50,
+  },
+  attachRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    padding: "10px 16px",
+    cursor: "pointer",
+    color: "#E9EDEF",
+    fontSize: 14,
+    transition: "background 0.15s",
+  },
+
+  attachIconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    color: "#fff",
+  },
+
 };

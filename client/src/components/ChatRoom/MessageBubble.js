@@ -13,35 +13,28 @@ export default function MessageBubble({
   onAvatarClick,
 }) {
   /* ======================================================
-     DELIVERY + SEEN LOGIC
+     TICK LOGIC
      ✔   = sent
      ✔✔  = delivered
-     ✔✔  = seen (blue)
+     ✔✔  blue = seen
   ===================================================== */
-
-  // delivered when receiver socket got message
-  const isDelivered =
-    Array.isArray(message.deliveredTo) && message.deliveredTo.length > 0;
-
-  // seen when receiver opened chat
   const isSeen =
-    Array.isArray(message.readBy) && message.readBy.length >= 2;
+    Array.isArray(message.readBy) && message.readBy.length > 1;
 
-  // decide tick + color
+  const isDelivered =
+    Array.isArray(message.readBy) && message.readBy.length >= 1;
+
   let tickIcon = "✔";
-  let tickColor = "#8696A0"; // grey
+  let tickColor = "#8696A0";
 
   if (isDelivered) tickIcon = "✔✔";
-  if (isSeen) {
-    tickIcon = "✔✔";
-    tickColor = "#53BDEB"; // blue
-  }
+  if (isSeen) tickColor = "#53BDEB";
 
   return (
     <div style={isMe ? styles.myMsgWrapper : styles.otherMsgWrapper}>
       <div style={isMe ? styles.myMsg : styles.otherMsg}>
 
-        {/* SENDER NAME (GROUP CHAT ONLY) */}
+        {/* 👤 SENDER NAME (GROUP CHAT ONLY) */}
         {!isPrivate && !isMe && (
           <div
             style={{ ...styles.senderName, color, cursor: "pointer" }}
@@ -51,10 +44,22 @@ export default function MessageBubble({
           </div>
         )}
 
-        {/* MESSAGE TEXT */}
-        <div style={styles.msgText}>{message.message}</div>
+        {/* 🖼️ IMAGE MESSAGE (WHATSAPP STYLE) */}
+        {message.file?.type === "image" && (
+          <img
+            src={message.file.url}
+            alt="chat-img"
+            style={styles.msgImage}
+            onClick={() => window.open(message.file.url, "_blank")}
+          />
+        )}
 
-        {/* OPTIONS MENU (ONLY MY MESSAGE) */}
+        {/* 📝 TEXT MESSAGE / IMAGE CAPTION */}
+        {message.message && (
+          <div style={styles.msgText}>{message.message}</div>
+        )}
+
+        {/* ⋮ OPTIONS MENU (ONLY MY MESSAGE) */}
         {isMe && (
           <div style={styles.dotWrapper}>
             <button
@@ -75,18 +80,20 @@ export default function MessageBubble({
                   Delete
                 </div>
 
-                <div
-                  style={styles.menuItem}
-                  onClick={() => onCopy(message.message)}
-                >
-                  Copy
-                </div>
+                {message.message && (
+                  <div
+                    style={styles.menuItem}
+                    onClick={() => onCopy(message.message)}
+                  >
+                    Copy
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
 
-        {/* TIME + TICKS */}
+        {/* ⏰ TIME + ✔✔ */}
         <div style={styles.metaRow}>
           <span style={styles.time}>
             {new Date(message.timestamp).toLocaleTimeString([], {
@@ -95,14 +102,8 @@ export default function MessageBubble({
             })}
           </span>
 
-          {/* ✔ / ✔✔ / ✔✔ (BLUE) — ONLY MY MESSAGE */}
           {isMe && (
-            <span
-              style={{
-                ...styles.tick,
-                color: tickColor,
-              }}
-            >
+            <span style={{ ...styles.tick, color: tickColor }}>
               {tickIcon}
             </span>
           )}

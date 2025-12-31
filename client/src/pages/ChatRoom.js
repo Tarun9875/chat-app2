@@ -94,22 +94,15 @@ export default function ChatRoom({
   try {
     if (isPrivate) {
       const room = [user._id, groupId].sort().join("_");
-      await API.post("/messages/mark-read", { privateRoom: room });
+      await API.post("/messages/mark-read", {
+        privateRoom: room,
+      });
     } else {
-      await API.post("/messages/mark-read", { groupId });
+      // ✅ GROUP CHAT FIX
+      await API.post("/messages/mark-read", {
+        groupId,
+      });
     }
-
-    // 🔥 IMPORTANT — update UI readBy
-    setChat((prev) =>
-      prev.map((m) =>
-        m.senderId === user._id
-          ? m
-          : {
-              ...m,
-              readBy: Array.from(new Set([...(m.readBy || []), user._id])),
-            }
-      )
-    );
   } catch (err) {
     console.error("mark read error:", err);
   }
@@ -170,38 +163,40 @@ export default function ChatRoom({
     socket.on("receiveMessage", onReceive);
     return () => socket.off("receiveMessage", onReceive);
   }, [markAsRead]);
-  
+
+ 
   /* ======================================================
      🔥 NEW — AUTO REFRESH ✔✔ WHEN OTHER USER SEES MESSAGE
   ===================================================== */
   useEffect(() => {
-    const onSeen = ({ groupId, privateRoom, seenBy }) => {
-      const activeRoom = currentRoomRef.current;
+   const onSeen = ({ groupId, privateRoom, seenBy }) => {
+  if (!currentRoomRef.current) return;
 
-      const sameRoom = isPrivate
-        ? privateRoom === activeRoom
-        : groupId === activeRoom;
+  const activeRoom = currentRoomRef.current;
 
-      if (!sameRoom) return;
+  const sameRoom = isPrivate
+    ? privateRoom === activeRoom
+    : groupId === activeRoom;
 
-      // 🔥 update sender messages → show ✔✔ instantly
-      setChat((prev) =>
-        prev.map((m) =>
-          m.senderId === user._id
-            ? {
-                ...m,
-                readBy: Array.from(
-                  new Set([...(m.readBy || []), seenBy])
-                ),
-              }
-            : m
-        )
-      );
-    };
+  if (!sameRoom) return;
+
+  setChat((prev) =>
+    prev.map((m) =>
+      m.senderId === user._id
+        ? {
+            ...m,
+            readBy: [...new Set([...(m.readBy || []), seenBy])],
+          }
+        : m
+    )
+  );
+};
+
 
     socket.on("messages-seen", onSeen);
     return () => socket.off("messages-seen", onSeen);
-  }, [isPrivate, user?._id]);
+  }, [isPrivate, user?._id, groupId]);
+
 
   /* ======================================================
      AUTO SCROLL

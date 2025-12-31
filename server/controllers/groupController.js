@@ -1,22 +1,25 @@
+// server/controllers/groupController.js
 import Group from "../models/Group.js";
 import Message from "../models/Message.js";
+import mongoose from "mongoose";
 
 export const getGroupsWithLast = async (req, res) => {
   try {
-    const userId = req.user._id.toString();
+    const userId = new mongoose.Types.ObjectId(req.user._id);
 
     const groups = await Group.find({ members: userId }).lean();
 
     const result = await Promise.all(
       groups.map(async (g) => {
+        // ✅ CORRECT unread count
         const unreadCount = await Message.countDocuments({
-          groupId: g._id.toString(),
+          groupId: g._id,           // ✅ ObjectId
           isPrivate: false,
-          readBy: { $ne: userId }, // 🔥 NOT READ
+          readBy: { $nin: [userId] } // ✅ NOT IN ARRAY
         });
 
         const last = await Message.findOne({
-          groupId: g._id.toString(),
+          groupId: g._id,
           isPrivate: false,
         })
           .sort({ timestamp: -1 })
@@ -27,6 +30,7 @@ export const getGroupsWithLast = async (req, res) => {
           unreadCount,
           lastMessage: last
             ? {
+                _id: last._id,
                 message: last.message,
                 senderName: last.senderName,
                 timestamp: last.timestamp,

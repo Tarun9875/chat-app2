@@ -29,7 +29,8 @@ export default function ChatHeader({
 
       {!isPrivate && (
         <button style={styles.infoBtn} onClick={onAvatarClick}>
-          ℹ️
+        {/* three dots */}
+          ⋮
         </button>
       )}
     </div>

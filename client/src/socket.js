@@ -3,26 +3,16 @@ import { io } from "socket.io-client";
 
 /*
   🔹 SOCKET SERVER URL
-  - Local dev  : http://localhost:5000
-  - Same WiFi  : http://<PC-IP>:5000
-  - Production: https://your-domain.com
 */
-
 const SERVER_URL =
-  process.env.REACT_APP_SOCKET_URL ||
-  "http://localhost:5000";
+  process.env.REACT_APP_SOCKET_URL || "http://localhost:5000";
 
 /*
-  🔹 Socket configuration
-  - websocket first (prevents polling errors)
-  - fallback to polling if needed
-  - credentials enabled (JWT / cookies)
+  🔹 Create socket instance (NO auto-connect)
 */
-
 const socket = io(SERVER_URL, {
-  transports: ["websocket", "polling"], // ✅ FIXES WebSocket closed error
-  withCredentials: true,
-  autoConnect: true,
+  transports: ["websocket", "polling"],
+  autoConnect: false,      // 🔥 IMPORTANT
   reconnection: true,
   reconnectionAttempts: 10,
   reconnectionDelay: 1000,

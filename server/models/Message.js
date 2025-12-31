@@ -1,89 +1,118 @@
-// server/models/Message.js
 import mongoose from "mongoose";
 
-const messageSchema = new mongoose.Schema({
-  /* ===============================
-     CHAT TYPE
-  =============================== */
-  groupId: {
-    type: String,
-    default: null, // group chat id
-  },
+const messageSchema = new mongoose.Schema(
+  {
+    /* ===============================
+       CHAT TYPE
+    =============================== */
 
-  privateRoom: {
-    type: String,
-    default: null, // private room (sorted user ids)
-  },
+    groupId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Group",
+      default: null,
+      index: true,
+    },
 
-  isPrivate: {
-    type: Boolean,
-    default: false,
-  },
+    privateRoom: {
+      type: String,
+      default: null,
+      index: true,
+    },
 
-  /* ===============================
-     SENDER INFO
-  =============================== */
-  senderId: {
-    type: String,
-    required: true,
-  },
+    isPrivate: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
 
-  senderName: {
-    type: String,
-    required: true,
-  },
+    /* ===============================
+       SENDER INFO
+    =============================== */
 
-  senderPhoto: {
-    type: String,
-    default: "",
-  },
+    senderId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
 
-  /* ===============================
-     RECEIVER INFO (PRIVATE CHAT)
-  =============================== */
-  toUserId: {
-    type: String,
-    default: null,
-  },
+    senderName: {
+      type: String,
+      required: true,
+    },
 
-  /* ===============================
-     MESSAGE CONTENT
-  =============================== */
-  message: {
-    type: String,
-    required: true,
-  },
+    senderPhoto: {
+      type: String,
+      default: "",
+    },
 
-  /* ===============================
-     DELIVERY & SEEN STATUS
-     ✔ deliveredTo → ✔✔ grey
-     ✔ readBy      → ✔✔ blue
-  =============================== */
-  deliveredTo: {
-    type: [String], // userIds who received message
-    default: [],
-  },
+    /* ===============================
+       RECEIVER (PRIVATE CHAT)
+    =============================== */
 
-  readBy: {
-    type: [String], // userIds who read message
-    default: [],
-  },
+    toUserId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+      index: true,
+    },
 
-  /* ===============================
-     TIME
-  =============================== */
-  timestamp: {
-    type: Date,
-    default: Date.now,
+    /* ===============================
+       MESSAGE CONTENT
+    =============================== */
+
+    message: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+
+    deleted: {
+      type: Boolean,
+      default: false,
+    },
+
+    /* ===============================
+       READ STATUS (🔥 FIXED)
+    =============================== */
+
+    readBy: {
+      type: [
+        {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+        },
+      ],
+      default: [], // 🔥 VERY IMPORTANT
+      index: true,
+    },
+
+    /* ===============================
+       TIME
+    =============================== */
+
+    timestamp: {
+      type: Date,
+      default: Date.now,
+      index: true,
+    },
   },
-});
+  { versionKey: false }
+);
 
 /* ===============================
-   INDEXES (IMPORTANT FOR SPEED)
+   INDEXES (🔥 OPTIMIZED)
 =============================== */
-messageSchema.index({ groupId: 1, timestamp: 1 });
-messageSchema.index({ privateRoom: 1, timestamp: 1 });
-messageSchema.index({ senderId: 1 });
-messageSchema.index({ toUserId: 1 });
+
+// Last message fast lookup
+messageSchema.index({ groupId: 1, timestamp: -1 });
+messageSchema.index({ privateRoom: 1, timestamp: -1 });
+
+// 🔥 UNREAD COUNT FAST QUERY
+messageSchema.index({
+  groupId: 1,
+  senderId: 1,
+  readBy: 1,
+});
 
 export default mongoose.model("Message", messageSchema);
