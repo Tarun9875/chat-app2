@@ -1,3 +1,4 @@
+//Src//Components//ChatRoom//RightInfoPanel.js
 import { useState } from "react";
 
 export default function RightInfoPanel({

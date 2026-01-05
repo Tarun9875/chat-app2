@@ -10,6 +10,7 @@ import authRoutes from "./routes/auth.js";
 import groupRoutes from "./routes/group.js";
 import messageRoutes from "./routes/messages.js";
 import userRoutes from "./routes/user.js";
+import uploadRoutes from "./routes/upload.js";
 
 import Message from "./models/Message.js";
 import User from "./models/User.js";
@@ -20,41 +21,61 @@ const app = express();
 
 app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 app.use(express.json());
+
+// serve uploaded files
 app.use("/uploads", express.static(path.resolve("uploads")));
 
 /* ================= DB ================= */
 mongoose
   .connect("mongodb://127.0.0.1:27017/chatapp")
   .then(() => console.log("✅ MongoDB Connected"))
-  .catch(console.error);
+  .catch((err) => console.error("❌ Mongo error:", err));
 
 /* ================= ROUTES ================= */
 app.use("/auth", authRoutes);
 app.use("/group", auth, groupRoutes);
 app.use("/messages", auth, messageRoutes);
 app.use("/user", auth, userRoutes);
+app.use("/upload", auth, uploadRoutes);
 
-/* ================= SOCKET ================= */
+// 🔥 REQUIRED so other users can view/download images
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
+
+
+/* ================= SOCKET SERVER ================= */
 const httpServer = createServer(app);
+
 const io = new Server(httpServer, {
-  cors: { origin: "http://localhost:3000", credentials: true },
+  cors: {
+    origin: "http://localhost:3000",
+    credentials: true,
+  },
 });
 
 app.set("io", io);
 
 /* ================= HELPERS ================= */
-const onlineUsers = new Map(); // userId → socketId
+const onlineUsers = new Map(); // userId -> socketId
 const makeRoom = (a, b) => [a, b].sort().join("_");
 
 /* ================= SOCKET LOGIC ================= */
 io.on("connection", (socket) => {
   console.log("⚡ Socket connected:", socket.id);
 
-  /* ---------- ONLINE ---------- */
+  /* ---------- USER ONLINE ---------- */
   socket.on("user-online", (userId) => {
     if (!userId) return;
     onlineUsers.set(userId, socket.id);
     io.emit("online-users", Array.from(onlineUsers.keys()));
+  });
+
+  /* ---------- JOIN / LEAVE ROOM ---------- */
+  socket.on("joinRoom", (room) => {
+    if (room) socket.join(room);
+  });
+
+  socket.on("leaveRoom", (room) => {
+    if (room) socket.leave(room);
   });
 
   /* ---------- TYPING ---------- */
@@ -68,19 +89,26 @@ io.on("connection", (socket) => {
     socket.to(room).emit("stop-typing");
   });
 
-  /* ---------- JOIN / LEAVE ---------- */
-  socket.on("joinRoom", (room) => room && socket.join(room));
-  socket.on("leaveRoom", (room) => room && socket.leave(room));
-
-  /* ---------- SEND MESSAGE ---------- */
+  /* =====================================================
+     SEND MESSAGE (🔥 FIXED – TEXT + FILE SUPPORT)
+  ===================================================== */
   socket.on("sendMessage", async (data) => {
     try {
-      const { isPrivate, senderId, senderName, message, groupId, toUserId } = data;
-      if (!senderId || !message) return;
+      const {
+        isPrivate,
+        senderId,
+        senderName,
+        senderPhoto,
+        message,
+        file,
+        messageType,
+        groupId,
+        toUserId,
+      } = data;
 
-      const sender = await User.findById(senderId).lean();
+      if (!senderId) return;
 
-      /* ===== PRIVATE ===== */
+      /* ===== PRIVATE CHAT ===== */
       if (isPrivate) {
         const privateRoom = makeRoom(senderId, toUserId);
 
@@ -89,59 +117,43 @@ io.on("connection", (socket) => {
           isPrivate: true,
           senderId,
           senderName,
-          senderPhoto: sender?.photo || "",
+          senderPhoto,
           toUserId,
           message,
-          deliveredTo: [],
+          messageType,
+          file,
           readBy: [senderId],
           timestamp: Date.now(),
         });
 
         io.to(privateRoom).emit("receiveMessage", saved);
-
-        const receiverSocket = onlineUsers.get(toUserId);
-        if (receiverSocket) {
-          await Message.updateOne(
-            { _id: saved._id },
-            { $addToSet: { deliveredTo: toUserId } }
-          );
-
-          const senderSocket = onlineUsers.get(senderId);
-          if (senderSocket) {
-            io.to(senderSocket).emit("message-delivered", {
-              messageId: saved._id,
-              deliveredTo: toUserId,
-            });
-          }
-        }
         return;
       }
 
-      /* ===== GROUP ===== */
+      /* ===== GROUP CHAT ===== */
       const saved = await Message.create({
         groupId,
-        isPrivate: false,
         senderId,
         senderName,
-        senderPhoto: sender?.photo || "",
+        senderPhoto,
         message,
-        deliveredTo: [],
+        messageType,
+        file,
         readBy: [senderId],
-        timestamp: Date.now(),
       });
 
       io.to(groupId).emit("receiveMessage", saved);
     } catch (err) {
-      console.error("❌ sendMessage:", err);
+      console.error("❌ sendMessage error:", err);
     }
   });
 
-  /* ---------- DISCONNECT (ONLY ONE) ---------- */
+  /* ---------- DISCONNECT ---------- */
   socket.on("disconnect", async () => {
-    for (const [uid, sid] of onlineUsers.entries()) {
-      if (sid === socket.id) {
-        onlineUsers.delete(uid);
-        await User.findByIdAndUpdate(uid, { lastSeen: new Date() });
+    for (const [userId, socketId] of onlineUsers.entries()) {
+      if (socketId === socket.id) {
+        onlineUsers.delete(userId);
+        await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
         break;
       }
     }
@@ -149,8 +161,9 @@ io.on("connection", (socket) => {
   });
 });
 
-/* ================= START ================= */
+/* ================= START SERVER ================= */
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, "0.0.0.0", () =>
-  console.log(`🚀 Server running on http://localhost:${PORT}`)
-);
+
+httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});

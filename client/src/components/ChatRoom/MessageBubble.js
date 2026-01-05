@@ -1,4 +1,3 @@
-// client/src/components/ChatRoom/MessageBubble.js
 import { styles } from "./styles";
 
 export default function MessageBubble({
@@ -12,17 +11,17 @@ export default function MessageBubble({
   onCopy,
   onAvatarClick,
 }) {
-  /* ======================================================
-     TICK LOGIC
+  /* ===============================
+     READ / DELIVERED LOGIC
      ✔   = sent
      ✔✔  = delivered
-     ✔✔  blue = seen
-  ===================================================== */
-  const isSeen =
-    Array.isArray(message.readBy) && message.readBy.length > 1;
+     ✔✔ blue = seen
+  =============================== */
 
-  const isDelivered =
-    Array.isArray(message.readBy) && message.readBy.length >= 1;
+  const readBy = Array.isArray(message.readBy) ? message.readBy : [];
+
+  const isDelivered = readBy.length >= 1;
+  const isSeen = readBy.length > 1;
 
   let tickIcon = "✔";
   let tickColor = "#8696A0";
@@ -30,11 +29,20 @@ export default function MessageBubble({
   if (isDelivered) tickIcon = "✔✔";
   if (isSeen) tickColor = "#53BDEB";
 
+  /* ===============================
+     FILE URL HELPER (SAFE)
+  =============================== */
+
+  const fileUrl =
+    message?.file?.url
+      ? `http://localhost:5000${message.file.url}`
+      : null;
+
   return (
     <div style={isMe ? styles.myMsgWrapper : styles.otherMsgWrapper}>
       <div style={isMe ? styles.myMsg : styles.otherMsg}>
 
-        {/* 👤 SENDER NAME (GROUP CHAT ONLY) */}
+        {/* ================= SENDER NAME (GROUP CHAT ONLY) ================= */}
         {!isPrivate && !isMe && (
           <div
             style={{ ...styles.senderName, color, cursor: "pointer" }}
@@ -44,56 +52,54 @@ export default function MessageBubble({
           </div>
         )}
 
-        {/* 🖼️ IMAGE MESSAGE (WHATSAPP STYLE) */}
-        {message.file?.type === "image" && (
-          <img
-            src={message.file.url}
-            alt="chat-img"
-            style={styles.msgImage}
-            onClick={() => window.open(message.file.url, "_blank")}
-          />
-        )}
+        {/* ================= MESSAGE BODY ================= */}
 
-        {/* 📝 TEXT MESSAGE / IMAGE CAPTION */}
+        {/* TEXT MESSAGE */}
         {message.message && (
           <div style={styles.msgText}>{message.message}</div>
         )}
 
-        {/* ⋮ OPTIONS MENU (ONLY MY MESSAGE) */}
-        {isMe && (
-          <div style={styles.dotWrapper}>
-            <button
-              style={styles.dotsBtn}
-              onClick={() =>
-                setMenuOpenId(menuOpenId === message._id ? null : message._id)
-              }
-            >
-              ⋮
-            </button>
-
-            {menuOpenId === message._id && (
-              <div style={styles.menuBox}>
-                <div
-                  style={styles.menuItem}
-                  onClick={() => onDelete(message._id)}
-                >
-                  Delete
-                </div>
-
-                {message.message && (
-                  <div
-                    style={styles.menuItem}
-                    onClick={() => onCopy(message.message)}
-                  >
-                    Copy
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+        {/* IMAGE MESSAGE */}
+        {message.messageType === "image" && fileUrl && (
+          <img
+            src={fileUrl}
+            alt="sent-img"
+            style={styles.imageMsg}
+            loading="lazy"        // 🔥 performance improvement
+          />
         )}
 
-        {/* ⏰ TIME + ✔✔ */}
+        {/* VIDEO MESSAGE */}
+        {message.messageType === "video" && fileUrl && (
+          <video
+            src={fileUrl}
+            controls
+            style={styles.videoMsg}
+          />
+        )}
+
+        {/* AUDIO MESSAGE */}
+        {message.messageType === "audio" && fileUrl && (
+          <audio
+            src={fileUrl}
+            controls
+            style={styles.audioMsg}
+          />
+        )}
+
+        {/* DOCUMENT / FILE */}
+        {message.messageType === "file" && fileUrl && (
+          <a
+            href={fileUrl}
+            target="_blank"
+            rel="noreferrer"
+            style={styles.fileMsg}
+          >
+            📄 {message.file?.name || "Download file"}
+          </a>
+        )}
+
+        {/* ================= META (TIME + TICKS) ================= */}
         <div style={styles.metaRow}>
           <span style={styles.time}>
             {new Date(message.timestamp).toLocaleTimeString([], {
@@ -108,6 +114,43 @@ export default function MessageBubble({
             </span>
           )}
         </div>
+
+        {/* ================= OPTIONS MENU (ONLY MY MESSAGE) ================= */}
+        {isMe && (
+          <div style={styles.dotWrapper}>
+            <button
+              style={styles.dotsBtn}
+              onClick={() =>
+                setMenuOpenId(
+                  menuOpenId === message._id ? null : message._id
+                )
+              }
+            >
+              ⋮
+            </button>
+
+            {menuOpenId === message._id && (
+              <div style={styles.menuBox}>
+                <div
+                  style={styles.menuItem}
+                  onClick={() => onDelete(message._id)}
+                >
+                  Delete
+                </div>
+
+                {/* Copy only when text exists */}
+                {message.message && (
+                  <div
+                    style={styles.menuItem}
+                    onClick={() => onCopy(message.message)}
+                  >
+                    Copy
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

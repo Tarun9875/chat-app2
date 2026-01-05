@@ -265,5 +265,55 @@ export const styles = {
     justifyContent: "center",
     color: "#fff",
   },
+  chatImage: {
+  maxWidth: 260,
+  borderRadius: 10,
+},
+
+chatVideo: {
+  maxWidth: 260,
+  borderRadius: 10,
+},
+
+previewImg: {
+  width: 120,
+  borderRadius: 8,
+},
+
+previewVideo: {
+  width: 160,
+  borderRadius: 8,
+},
+
+fileBubble: {
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+},
+imageMsg: {
+  maxWidth: "260px",
+  maxHeight: "260px",
+  borderRadius: 10,
+  marginTop: 6,
+},
+
+videoMsg: {
+  maxWidth: "260px",
+  borderRadius: 10,
+  marginTop: 6,
+},
+
+audioMsg: {
+  marginTop: 6,
+  width: "240px",
+},
+
+fileMsg: {
+  display: "inline-block",
+  marginTop: 6,
+  color: "#53BDEB",
+  textDecoration: "none",
+  fontSize: 14,
+},
 
 };

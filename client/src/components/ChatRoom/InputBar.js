@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+// Emoji Picker Library
 import EmojiPicker from "emoji-picker-react";
 
 import InsertDriveFileIcon from "@mui/icons-material/InsertDriveFile";
@@ -19,20 +20,25 @@ export default function InputBar({ message, setMessage, sendMsg }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
 
-  const fileRef = useRef();
+  const fileRef = useRef(null);
 
   /* ===============================
      FILE SELECT
   =============================== */
   const handleFileChange = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
+    const selected = e.target.files[0];
+    if (!selected) return;
 
-    setFile(f);
+    setFile(selected);
 
-    if (f.type.startsWith("image/")) {
-      setPreview(URL.createObjectURL(f));
+    // Preview only for images (WhatsApp behavior)
+    if (selected.type.startsWith("image/")) {
+      setPreview(URL.createObjectURL(selected));
+    } else {
+      setPreview(null);
     }
+
+    setAnchorEl(null); // close attachment menu
   };
 
   /* ===============================
@@ -41,9 +47,12 @@ export default function InputBar({ message, setMessage, sendMsg }) {
   const handleSend = () => {
     if (!message.trim() && !file) return;
 
-    sendMsg({ text: message, file });
+    sendMsg({
+      text: message,
+      file,
+    });
 
-    // 🔥 RESET EVERYTHING (WhatsApp behavior)
+    // 🔥 WhatsApp-style reset
     setMessage("");
     setFile(null);
     setPreview(null);
@@ -53,10 +62,10 @@ export default function InputBar({ message, setMessage, sendMsg }) {
 
   return (
     <div style={styles.inputBarWrapper}>
-      {/* IMAGE PREVIEW */}
+      {/* ================= IMAGE PREVIEW ================= */}
       {preview && (
         <div style={styles.previewBox}>
-          <img src={preview} style={styles.previewImg} />
+          <img src={preview} alt="preview" style={styles.previewImg} />
           <IconButton
             size="small"
             style={styles.previewClose}
@@ -70,7 +79,7 @@ export default function InputBar({ message, setMessage, sendMsg }) {
         </div>
       )}
 
-      {/* INPUT BAR */}
+      {/* ================= INPUT BAR ================= */}
       <div style={styles.inputBar}>
         {/* ATTACH */}
         <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
@@ -78,7 +87,7 @@ export default function InputBar({ message, setMessage, sendMsg }) {
         </IconButton>
 
         {/* EMOJI */}
-        <IconButton onClick={() => setShowEmoji((p) => !p)}>
+        <IconButton onClick={() => setShowEmoji((prev) => !prev)}>
           <SentimentSatisfiedAltIcon />
         </IconButton>
 
@@ -97,7 +106,7 @@ export default function InputBar({ message, setMessage, sendMsg }) {
         </IconButton>
       </div>
 
-      {/* ATTACHMENT MENU (WHATSAPP STYLE) */}
+      {/* ================= ATTACHMENT MENU ================= */}
       <Popover
         open={Boolean(anchorEl)}
         anchorEl={anchorEl}
@@ -109,39 +118,40 @@ export default function InputBar({ message, setMessage, sendMsg }) {
         <AttachRow
           icon={<InsertDriveFileIcon />}
           label="Document"
-          color="#8B5CF6"     // 🟣 Purple
+          color="#8B5CF6"
+          onClick={() => fileRef.current.click()}
         />
 
         <AttachRow
           icon={<PhotoIcon />}
           label="Photos & videos"
-          color="#3B82F6"     // 🔵 Blue
+          color="#3B82F6"
           onClick={() => fileRef.current.click()}
         />
 
         <AttachRow
           icon={<CameraAltIcon />}
           label="Camera"
-          color="#EC4899"     // 🌸 Pink
+          color="#EC4899"
         />
 
         <AttachRow
           icon={<AudiotrackIcon />}
           label="Audio"
-          color="#F97316"     // 🟠 Orange
+          color="#F97316"
         />
-
       </Popover>
 
+      {/* FILE INPUT */}
       <input
+        ref={fileRef}
         type="file"
         hidden
-        ref={fileRef}
-        accept="image/*"
+        accept="image/*,video/*,.pdf,.doc,.docx,.zip,.mp3"
         onChange={handleFileChange}
       />
 
-      {/* EMOJI PICKER */}
+      {/* ================= EMOJI PICKER ================= */}
       {showEmoji && (
         <div style={styles.emojiPicker}>
           <EmojiPicker

@@ -1,3 +1,4 @@
+// client/src/components/ChatRoom/MessageList.js
 import DateSeparator from "./DateSeparator";
 import MessageBubble from "./MessageBubble";
 import { styles } from "./styles";

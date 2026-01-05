@@ -9,7 +9,8 @@ import InputBar from "../components/ChatRoom/InputBar";
 import GroupInfoPanel from "../components/Group/GroupInfoPanel";
 import AddMemberPopup from "../components/Group/AddMemberPopup";
 import UserProfilePopup from "../components/Group/UserProfilePopup";
-
+//Working on ChatRoom.js
+import RightInfoPanelUser from "../components/ChatRoom/RightInfoPanelUser";
 /* ======================================================
    COLOR SYSTEM (WHATSAPP STYLE)
 ====================================================== */
@@ -47,6 +48,8 @@ export default function ChatRoom({
 
   const bottomRef = useRef(null);
   const currentRoomRef = useRef(null);
+  //New Right Info Panel State
+  const [userInfoOpen, setUserInfoOpen] = useState(false);
 
   /* ======================================================
      FORMAT DATE
@@ -89,24 +92,24 @@ export default function ChatRoom({
      MARK AS READ (FIXED)
   ===================================================== */
   const markAsRead = useCallback(async () => {
-  if (!user?._id || !groupId) return;
+    if (!user?._id || !groupId) return;
 
-  try {
-    if (isPrivate) {
-      const room = [user._id, groupId].sort().join("_");
-      await API.post("/messages/mark-read", {
-        privateRoom: room,
-      });
-    } else {
-      // ✅ GROUP CHAT FIX
-      await API.post("/messages/mark-read", {
-        groupId,
-      });
+    try {
+      if (isPrivate) {
+        const room = [user._id, groupId].sort().join("_");
+        await API.post("/messages/mark-read", {
+          privateRoom: room,
+        });
+      } else {
+        // ✅ GROUP CHAT FIX
+        await API.post("/messages/mark-read", {
+          groupId,
+        });
+      }
+    } catch (err) {
+      console.error("mark read error:", err);
     }
-  } catch (err) {
-    console.error("mark read error:", err);
-  }
-}, [groupId, isPrivate, user?._id]);
+  }, [groupId, isPrivate, user?._id]);
 
 
   /* ======================================================
@@ -164,33 +167,33 @@ export default function ChatRoom({
     return () => socket.off("receiveMessage", onReceive);
   }, [markAsRead]);
 
- 
+
   /* ======================================================
      🔥 NEW — AUTO REFRESH ✔✔ WHEN OTHER USER SEES MESSAGE
   ===================================================== */
   useEffect(() => {
-   const onSeen = ({ groupId, privateRoom, seenBy }) => {
-  if (!currentRoomRef.current) return;
+    const onSeen = ({ groupId, privateRoom, seenBy }) => {
+      if (!currentRoomRef.current) return;
 
-  const activeRoom = currentRoomRef.current;
+      const activeRoom = currentRoomRef.current;
 
-  const sameRoom = isPrivate
-    ? privateRoom === activeRoom
-    : groupId === activeRoom;
+      const sameRoom = isPrivate
+        ? privateRoom === activeRoom
+        : groupId === activeRoom;
 
-  if (!sameRoom) return;
+      if (!sameRoom) return;
 
-  setChat((prev) =>
-    prev.map((m) =>
-      m.senderId === user._id
-        ? {
-            ...m,
-            readBy: [...new Set([...(m.readBy || []), seenBy])],
-          }
-        : m
-    )
-  );
-};
+      setChat((prev) =>
+        prev.map((m) =>
+          m.senderId === user._id
+            ? {
+              ...m,
+              readBy: [...new Set([...(m.readBy || []), seenBy])],
+            }
+            : m
+        )
+      );
+    };
 
 
     socket.on("messages-seen", onSeen);
@@ -208,20 +211,42 @@ export default function ChatRoom({
   /* ======================================================
      SEND MESSAGE
   ===================================================== */
-  const sendMsg = () => {
-    if (!message.trim()) return;
+  const sendMsg = async ({ text, file }) => {
+    let fileData = null;
+    let messageType = "text";
+
+    if (file) {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const token = sessionStorage.getItem("token");
+
+      const res = await API.post("/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${token}`, // ✅ REQUIRED
+        },
+      });
+
+      fileData = res.data;
+
+      if (file.type.startsWith("image/")) messageType = "image";
+      else if (file.type.startsWith("video/")) messageType = "video";
+      else if (file.type.startsWith("audio/")) messageType = "audio";
+      else messageType = "file";
+    }
 
     socket.emit("sendMessage", {
       isPrivate,
       groupId,
+      toUserId: isPrivate ? groupId : null,
       senderId: user._id,
       senderName: user.name,
-      senderAvatar: user.photo || "",
-      toUserId: isPrivate ? groupId : null,
-      message: message.trim(),
+      senderPhoto: user.photo || "",
+      message: text || "",
+      file: fileData,
+      messageType,
     });
-
-    setMessage("");
   };
 
   /* ======================================================
@@ -316,7 +341,14 @@ export default function ChatRoom({
         subtitle={headerSubtitle}
         avatar={headerAvatar}
         isPrivate={isPrivate}
-        onAvatarClick={() => !isPrivate && setShowGroupPanel(true)}
+        onAvatarClick={() => {
+          if (isPrivate) {
+            setUserInfoOpen(true);   // ✅ open user panel
+          } else {
+            setShowGroupPanel(true); // ✅ open group panel
+          }
+        }}
+
       />
 
       <MessageList
@@ -364,6 +396,14 @@ export default function ChatRoom({
           onClose={() => setSelectedUser(null)}
         />
       )}
+      {isPrivate && activeUser && (
+        <RightInfoPanelUser
+          isOpen={userInfoOpen}
+          onClose={() => setUserInfoOpen(false)}
+          user={activeUser}
+        />
+      )}
+
     </div>
   );
 }

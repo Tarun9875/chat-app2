@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const messageSchema = new mongoose.Schema(
   {
     /* ===============================
-       CHAT TYPE
+       CHAT TARGET
     =============================== */
 
     groupId: {
@@ -13,6 +13,7 @@ const messageSchema = new mongoose.Schema(
       index: true,
     },
 
+    // For private chats → userA_userB
     privateRoom: {
       type: String,
       default: null,
@@ -47,7 +48,7 @@ const messageSchema = new mongoose.Schema(
     },
 
     /* ===============================
-       RECEIVER (PRIVATE CHAT)
+       RECEIVER (PRIVATE CHAT ONLY)
     =============================== */
 
     toUserId: {
@@ -58,12 +59,13 @@ const messageSchema = new mongoose.Schema(
     },
 
     /* ===============================
-       MESSAGE CONTENT
+       MESSAGE TEXT
+       🔥 OPTIONAL (for image/audio/file)
     =============================== */
 
     message: {
       type: String,
-      required: true,
+      default: "",   // ✅ FIXED
       trim: true,
     },
 
@@ -73,18 +75,49 @@ const messageSchema = new mongoose.Schema(
     },
 
     /* ===============================
-       READ STATUS (🔥 FIXED)
+       READ STATUS
     =============================== */
 
-    readBy: {
-      type: [
-        {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: "User",
-        },
-      ],
-      default: [], // 🔥 VERY IMPORTANT
+    readBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+      },
+    ],
+
+    /* ===============================
+       MESSAGE TYPE
+    =============================== */
+
+    messageType: {
+      type: String,
+      enum: ["text", "image", "video", "audio", "file"],
+      default: "text",
       index: true,
+    },
+
+    /* ===============================
+       FILE OBJECT (🔥 IMPORTANT)
+       DO NOT USE STRING HERE
+    =============================== */
+
+    file: {
+      name: {
+        type: String,
+        default: "",
+      },
+      size: {
+        type: Number,
+        default: 0,
+      },
+      type: {
+        type: String,
+        default: "",
+      },
+      url: {
+        type: String,
+        default: "",
+      },
     },
 
     /* ===============================
@@ -97,22 +130,20 @@ const messageSchema = new mongoose.Schema(
       index: true,
     },
   },
-  { versionKey: false }
+  {
+    versionKey: false,
+  }
 );
 
 /* ===============================
-   INDEXES (🔥 OPTIMIZED)
+   INDEXES (FAST QUERIES)
 =============================== */
 
-// Last message fast lookup
+// Fast chat load
 messageSchema.index({ groupId: 1, timestamp: -1 });
 messageSchema.index({ privateRoom: 1, timestamp: -1 });
 
-// 🔥 UNREAD COUNT FAST QUERY
-messageSchema.index({
-  groupId: 1,
-  senderId: 1,
-  readBy: 1,
-});
+// Fast unread count
+messageSchema.index({ senderId: 1, readBy: 1 });
 
 export default mongoose.model("Message", messageSchema);
