@@ -1,60 +1,36 @@
 // server/controllers/user.controller.js
+import * as UserService from "../services/user.service.js";
 
-import mongoose from "mongoose";
-import User from "../models/User.js";
-import Message from "../models/Message.js";
-
-/**
- * ------------------------------------------------------
- * GET ALL USERS WITH:
- * - unread private message count
- * ------------------------------------------------------
- * Route: GET /user/all
- * Access: Authenticated
- * ------------------------------------------------------
- */
-export const getAllUsers = async (req, res) => {
+/* ======================================================
+   GET ALL USERS
+====================================================== */
+export async function getAllUsers(req, res) {
   try {
-    // --------------------------------------------------
-    // 1️⃣ Current logged-in user (ObjectId)
-    // --------------------------------------------------
-    const currentUserId = new mongoose.Types.ObjectId(req.user._id);
+    const users = await UserService.getAllUsersWithUnread(req.user._id);
+    res.json(users);
+  } catch (err) {
+    console.error("❌ getAllUsers:", err);
+    res.status(500).json({ message: "Failed to load users" });
+  }
+}
 
-    // --------------------------------------------------
-    // 2️⃣ Fetch all users except current user
-    // --------------------------------------------------
-    const users = await User.find(
-      { _id: { $ne: currentUserId } },
-      "name photo status"
-    ).lean();
+/* ======================================================
+   UPDATE PROFILE
+====================================================== */
+export async function updateProfile(req, res) {
+  try {
+    if (req.user._id.toString() !== req.params.id) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
 
-    // --------------------------------------------------
-    // 3️⃣ Attach unread count for each user
-    // --------------------------------------------------
-    const result = await Promise.all(
-      users.map(async (user) => {
-        const unreadCount = await Message.countDocuments({
-          isPrivate: true,
-          senderId: user._id,           // sender = other user
-          toUserId: currentUserId,      // receiver = me
-          readBy: { $ne: currentUserId }, // not read by me
-        });
-
-        return {
-          ...user,
-          unreadCount,
-        };
-      })
+    const user = await UserService.updateProfile(
+      req.params.id,
+      req.body
     );
 
-    // --------------------------------------------------
-    // 4️⃣ Send response
-    // --------------------------------------------------
-    res.json(result);
-  } catch (error) {
-    console.error("❌ getAllUsers error:", error);
-    res.status(500).json({
-      message: "Failed to load users",
-    });
+    res.json(user);
+  } catch (err) {
+    console.error("❌ updateProfile:", err);
+    res.status(400).json({ message: err.message });
   }
-};
+}
